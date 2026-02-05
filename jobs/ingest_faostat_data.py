@@ -16,29 +16,28 @@ def download_faostat_data(dataset_code, output_path):
         
 def main():
     dataset_code = sys.argv[1] if len(sys.argv) > 1 else 'Production_Crops_Livestock'
-    
+    # print(f"dataset_code: {dataset_code}")
+        # .config("spark.sql.catalog.lakehouse.uri", "jdbc:postgresql://postgres:5432/metastore") \
+        # .config("spark.sql.catalog.lakehouse.user", "admin") \
+        # .config("spark.sql.catalog.lakehouse.password", "password") \
+        
     spark = SparkSession.builder \
         .appName("FAOSTAT Data Ingestion") \
         .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \
         .config("spark.sql.catalog.lakehouse", "org.apache.iceberg.spark.SparkCatalog") \
-        .config("spark.sql.catalog.lakehouse.type", "jdbc") \
-        .config("spark.sql.catalog.lakehouse.uri", "jdbc:postgresql://postgres:5432/metastore") \
-        .config("spark.sql.catalog.lakehouse.user", "admin") \
-        .config("spark.sql.catalog.lakehouse.password", "password") \
+        .config("spark.sql.catalog.lakehouse.catalog-impl", "org.apache.iceberg.jdbc.JdbcCatalog") \
+        .config("spark.sql.catalog.lakehouse.uri", "jdbc:postgresql://postgres:5432/metastore?user=admin&password=password") \
         .config("spark.sql.catalog.lakehouse.warehouse", "s3a://lakehouse/warehouse") \
         .config("spark.hadoop.fs.s3a.access.key", "minioadmin") \
         .config("spark.hadoop.fs.s3a.secret.key", "minioadmin") \
         .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
         .config("spark.hadoop.fs.s3a.path.style.access", "true") \
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-        .config("spark.jars", "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.3,"
-                "org.apache.hadoop:hadoop-aws:3.3.4,"
-                "org.postgresql:postgresql:42.6.0,"
-                "com.amazonaws:aws-java-sdk-bundle:1.12.262") \
         .getOrCreate()
         
-    download_path = "/opt/spark/data/raw"
-    zip_file = download_faostat_data(dataset_code, download_path)
+    download_path = "/data/raw"
+    # zip_file = download_faostat_data(dataset_code, download_path)
+    zip_file = f"{download_path}/{dataset_code}.zip"
     
     if zip_file:
         # Unzip and process the data

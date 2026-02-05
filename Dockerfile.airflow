@@ -1,0 +1,38 @@
+# Dockerfile.airflow
+FROM apache/airflow:2.7.0
+# FROM apache/airflow:2.7.0-python3.11
+
+USER root
+
+# Install Java for Spark
+RUN apt-get update && \
+    apt-get install -y openjdk-11-jdk && \
+    apt-get clean
+
+
+ENV SPARK_VERSION=3.5.6
+ENV HADOOP_VERSION=3
+
+ENV SPARK_HOME=/opt/spark
+ENV PATH $PATH:$SPARK_HOME/bin
+
+RUN curl -o spark.tgz https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz && \
+    tar -xf spark.tgz && \
+    mv spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} $SPARK_HOME && \
+    rm spark.tgz
+
+# Set JAVA_HOME
+ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+
+USER airflow
+
+# Install additional Python packages
+COPY requirements.txt /requirements.txt
+RUN pip install --no-cache-dir -r /requirements.txt
+
+
+ENTRYPOINT ["/entrypoint.sh"]
