@@ -14,7 +14,28 @@ services:
     restart: unless-stopped
     networks:
       - lakehouse
-      
+
+  # FIX 1: Updated credentials to match 'minio' service (minioadmin/minioadmin)
+  createbuckets:
+    image: minio/mc
+    container_name: createbuckets
+    depends_on:
+      - minio
+    restart: on-failure
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Waiting for MinIO to be ready...';
+      until /usr/bin/mc alias set dockerminio http://minio:9000 minioadmin minioadmin; do
+        echo '...waiting...'
+        sleep 1;
+      done;
+      /usr/bin/mc mb -p dockerminio/faostat-lakehouse;
+      echo 'Bucket created.';
+      exit 0;
+      "
+    networks:
+      - lakehouse
+
   postgres:
     image: postgres:15
     container_name: postgres
@@ -31,7 +52,7 @@ services:
       - lakehouse
 
   spark-master:
-    image: bitnami/spark:3.5.0
+    image: bitnamilegacy/spark:3.5.0
     container_name: spark-master
     environment:
       - SPARK_MODE=master
@@ -50,9 +71,9 @@ services:
     networks:
       - lakehouse
 
-  spark-worker:
-    image: bitnami/spark:3.5.0
-    container_name: spark-worker
+  spark-worker2:
+    image: bitnamilegacy/spark:3.5.0
+    container_name: spark-worker2
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
@@ -66,9 +87,33 @@ services:
     networks:
       - lakehouse
 
+  # FIX 2: Added init container to handle permissions automatically
+  airflow-init:
+    image: apache/airflow:2.7.1
+    container_name: airflow-init
+    user: root
+    entrypoint: >
+      /bin/bash -c "
+      # Create directories if they don't exist
+      mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins /opt/airflow/data /opt/airflow/jobs
+      # Force permissions and ownership
+      chmod -R 777 /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins /opt/airflow/data /opt/airflow/jobs
+      chown -R 50000:0 /opt/airflow
+      echo 'Permissions and directories initialized successfully'
+      "
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+      - ./jobs:/opt/airflow/jobs
+    networks:
+      - lakehouse
+      
   airflow-webserver:
     image: apache/airflow:2.7.1
     container_name: airflow-webserver
+    user: "${AIRFLOW_UID:-50000}:0"
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://admin:password@postgres/metastore
@@ -85,7 +130,10 @@ services:
       - ./data:/opt/airflow/data
       - ./jobs:/opt/airflow/jobs
     depends_on:
-      - postgres
+      postgres:
+        condition: service_started
+      airflow-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     command: >
       bash -c "airflow db init &&
@@ -97,6 +145,7 @@ services:
   airflow-scheduler:
     image: apache/airflow:2.7.1
     container_name: airflow-scheduler
+    user: "${AIRFLOW_UID:-50000}:0"
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://admin:password@postgres/metastore
@@ -108,7 +157,10 @@ services:
       - ./data:/opt/airflow/data
       - ./jobs:/opt/airflow/jobs
     depends_on:
-      - postgres
+      postgres:
+        condition: service_started
+      airflow-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     command: airflow scheduler
     networks:
