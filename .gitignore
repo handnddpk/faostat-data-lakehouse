@@ -34,4 +34,5 @@ Thumbs.db
 
 # Environment variables
 .env
+.env.secrets
 .env.local
