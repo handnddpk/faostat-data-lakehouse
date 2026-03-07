@@ -9,3 +9,7 @@
 ### 3. Add another spark worker
 
 ## Section 2:
+
+### 1. Run the download function(using requests) by Airflow normally
+
+### 

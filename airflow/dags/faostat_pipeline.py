@@ -4,6 +4,8 @@ from airflow.operators.bash_operator import BashOperator
 from datetime import datetime, timedelta
 import requests
 
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
@@ -47,16 +49,45 @@ def ingest_data(dataset_code, output_path):
 #     dag=dag
 # )
 
+spark_conf = {
+    "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
+    "spark.sql.catalog.lakehouse": "org.apache.iceberg.spark.SparkCatalog",
+    "spark.sql.catalog.lakehouse.catalog-impl": "jdbc",
+    "spark.sql.catalog.lakehouse.uri": "jdbc:postgresql://postgres:5432/metastore",
+    "spark.sql.catalog.lakehouse.user": "admin",
+    "spark.sql.catalog.lakehouse.password": "password",
+    "spark.sql.catalog.lakehouse.warehouse": "s3a://lakehouse/warehouse",
+    "spark.hadoop.fs.s3a.access.key": "minioadmin",
+    "spark.hadoop.fs.s3a.secret.key": "minioadmin",
+    "spark.hadoop.fs.s3a.endpoint": "http://minio:9000",
+    "spark.hadoop.fs.s3a.path.style.access": "true",
+    "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
+}
 
-ingest_production_data_by_spark = BashOperator(
+spark_packages = (
+    "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.3,"
+    "org.apache.hadoop:hadoop-aws:3.3.4,"
+    "org.postgresql:postgresql:42.6.0,"
+    "com.amazonaws:aws-java-sdk-bundle:1.12.262"
+)
+
+ingest_production_data_by_spark = SparkSubmitOperator(
     task_id='ingest_production_data',
-    bash_command='spark-submit --master spark://spark:7077 /opt/spark/jobs/ingest_faostat_data.py Production_Crops_Livestock',
+    application_args=['Production_Crops_Livestock'],
+    conn_id='spark_default',
+    conf=spark_conf,
+    packages=spark_packages,
+    application = '/opt/spark/jobs/ingest_faostat_data.py',
     dag=dag
 )
 
-ingest_trade_data_by_spark = BashOperator(
+ingest_trade_data_by_spark = SparkSubmitOperator(
     task_id='ingest_trade_data',
-    bash_command='spark-submit --master spark://spark:7077 /opt/spark/jobs/ingest_faostat_data.py Trade_CropsLivestock',
+    application_args=['Trade_CropsLivestock'],
+    conn_id='spark_default',
+    conf=spark_conf,
+    packages=spark_packages,
+    application = '/opt/spark/jobs/ingest_faostat_data.py',
     dag=dag
 )
 
