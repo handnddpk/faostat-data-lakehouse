@@ -71,7 +71,7 @@ spark_packages = (
     "com.amazonaws:aws-java-sdk-bundle:1.12.262"
 )
 
-ingest_production_data_by_spark = SparkSubmitOperator(
+ingest_production_data = SparkSubmitOperator(
     task_id='ingest_production_data',
     application_args=['Production_Crops_Livestock'],
     conn_id='spark_default',
@@ -81,7 +81,7 @@ ingest_production_data_by_spark = SparkSubmitOperator(
     dag=dag
 )
 
-ingest_trade_data_by_spark = SparkSubmitOperator(
+ingest_trade_data = SparkSubmitOperator(
     task_id='ingest_trade_data',
     application_args=['Trade_CropsLivestock'],
     conn_id='spark_default',
@@ -91,4 +91,35 @@ ingest_trade_data_by_spark = SparkSubmitOperator(
     dag=dag
 )
 
-[ingest_production_data_by_spark, ingest_trade_data_by_spark]
+transform_production = SparkSubmitOperator(
+    task_id='transform_production_data',
+    conn_id='spark_default',
+    conf=spark_conf,
+    packages=spark_packages,
+    application = '/opt/spark/jobs/transform_production_data.py',
+    dag=dag
+)
+
+transform_trade = SparkSubmitOperator(
+    task_id='transform_trade_data',
+    conn_id='spark_default',
+    conf=spark_conf,
+    packages=spark_packages,
+    application = '/opt/spark/jobs/transform_trade_data.py',
+    dag=dag
+)
+
+analyze_food_security = SparkSubmitOperator(
+    task_id='analyze_food_security',
+    conn_id='spark_default',
+    conf=spark_conf,
+    packages=spark_packages,
+    application = '/opt/spark/jobs/analyze_food_security.py',
+    dag=dag
+)
+
+ingest_production_data >> transform_production
+ingest_trade_data >> transform_trade
+
+
+[transform_production, transform_trade] >> analyze_food_security
