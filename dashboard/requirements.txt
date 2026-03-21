@@ -1,1 +1,5 @@
 streamlit==1.29.0
+pandas==2.1.4
+plotly==5.18.0
+pyiceberg[pyarrow,sql-postgres]==0.5.1
+boto3==1.34.10
